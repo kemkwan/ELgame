@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oxymoron Master: SG x HK Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: grab;
+        }
+        .card:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+        }
+        .drop-zone {
+            min-height: 80px;
+            border: 3px dashed #cbd5e0;
+            transition: all 0.3s;
+        }
+        .drop-zone.active {
+            border-color: #4299e1;
+            background-color: #ebf8ff;
+        }
+        .correct { background-color: #c6f6d5 !important; border-color: #38a169 !important; }
+        .wrong { background-color: #fed7d7 !important; border-color: #e53e3e !important; }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen flex flex-col items-center justify-center p-4 font-sans text-gray-800">
+
+    <div id="game-container" class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-4xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-black text-indigo-700 mb-2">OXYMORON MASTER 🎭</h1>
+            <p class="text-gray-600 italic">"Clearly confused? Seriously funny? Let's play!"</p>
+            <div class="mt-4 flex justify-center gap-4">
+                <button onclick="showMode('match')" id="btn-match" class="px-6 py-2 rounded-full bg-indigo-600 text-white font-bold shadow-lg hover:bg-indigo-700 transition">Match-Up</button>
+                <button onclick="showMode('quiz')" id="btn-quiz" class="px-6 py-2 rounded-full bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 transition">Real or Fake?</button>
+            </div>
+        </div>
+
+        <!-- Mode: Match Up -->
+        <div id="mode-match" class="space-y-6">
+            <div class="text-center bg-indigo-50 p-4 rounded-xl mb-4">
+                <p class="font-bold text-indigo-800">Drag a word from the left to its opposite on the right to create an oxymoron!</p>
+            </div>
+            
+            <div class="flex flex-row justify-around items-start gap-8">
+                <!-- Word Bank -->
+                <div id="word-bank" class="flex flex-col gap-3 w-1/3">
+                    <!-- Words will be injected here -->
+                </div>
+
+                <!-- Targets -->
+                <div id="target-bank" class="flex flex-col gap-3 w-1/2">
+                    <!-- Targets will be injected here -->
+                </div>
+            </div>
+            <div class="text-center pt-4">
+                <button onclick="resetMatch()" class="text-indigo-600 underline font-bold">Reset Game</button>
+            </div>
+        </div>
+
+        <!-- Mode: Quiz -->
+        <div id="mode-quiz" class="hidden text-center space-y-8 py-10">
+            <div id="quiz-content">
+                <h2 class="text-2xl font-bold mb-4">Is this a real oxymoron?</h2>
+                <div id="quiz-word" class="text-5xl font-black text-indigo-600 py-8 bg-indigo-50 rounded-2xl mb-8">
+                    DEAFENING SILENCE
+                </div>
+                <div class="flex justify-center gap-6">
+                    <button onclick="checkQuiz(true)" class="bg-green-500 hover:bg-green-600 text-white px-10 py-4 rounded-2xl text-xl font-bold shadow-xl transition">YES (Real)</button>
+                    <button onclick="checkQuiz(false)" class="bg-red-500 hover:bg-red-600 text-white px-10 py-4 rounded-2xl text-xl font-bold shadow-xl transition">NO (Fake)</button>
+                </div>
+            </div>
+            <div id="quiz-feedback" class="hidden">
+                <p id="feedback-text" class="text-2xl font-bold mb-4"></p>
+                <button onclick="nextQuiz()" class="bg-indigo-600 text-white px-8 py-2 rounded-full font-bold">Next Question</button>
+            </div>
+            <p class="text-sm text-gray-500">Score: <span id="quiz-score">0</span></p>
+        </div>
+
+        <!-- Footer Score -->
+        <div id="win-screen" class="hidden text-center py-10">
+            <h2 class="text-4xl font-black text-yellow-500 mb-4">AWESOME! 🏆</h2>
+            <p class="text-xl mb-6">You've mastered the art of contradictions!</p>
+            <button onclick="location.reload()" class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold shadow-lg">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Data
+        const pairs = [
+            { first: "Deafening", second: "Silence" },
+            { first: "Cruel", second: "Kindness" },
+            { first: "Living", second: "Dead" },
+            { first: "Original", second: "Copy" },
+            { first: "Sweet", second: "Sorrow" },
+            { first: "Only", second: "Choice" },
+            { first: "Small", second: "Crowd" },
+            { first: "Passive", second: "Aggressive" }
+        ];
+
+        const quizData = [
+            { word: "DEAFENING SILENCE", isReal: true },
+            { word: "HAPPY SAD", isReal: false },
+            { word: "LIQUID GAS", isReal: true },
+            { word: "COLD FIRE", isReal: true },
+            { word: "FAST TURTLE", isReal: false },
+            { word: "BITTER SWEET", isReal: true },
+            { word: "SQUARE CIRCLE", isReal: false },
+            { word: "ALONE TOGETHER", isReal: true },
+            { word: "JUMBO SHRIMP", isReal: true },
+            { word: "PRETTY UGLY", isReal: true }
+        ];
+
+        let quizIndex = 0;
+        let score = 0;
+        let matchedCount = 0;
+
+        // UI Logic
+        function showMode(mode) {
+            document.getElementById('mode-match').classList.toggle('hidden', mode !== 'match');
+            document.getElementById('mode-quiz').classList.toggle('hidden', mode !== 'quiz');
+            document.getElementById('btn-match').className = mode === 'match' ? 'px-6 py-2 rounded-full bg-indigo-600 text-white font-bold shadow-lg' : 'px-6 py-2 rounded-full bg-gray-200 text-gray-700 font-bold';
+            document.getElementById('btn-quiz').className = mode === 'quiz' ? 'px-6 py-2 rounded-full bg-indigo-600 text-white font-bold shadow-lg' : 'px-6 py-2 rounded-full bg-gray-200 text-gray-700 font-bold';
+            if(mode === 'match') resetMatch();
+            if(mode === 'quiz') resetQuiz();
+        }
+
+        // Match Logic
+        function resetMatch() {
+            matchedCount = 0;
+            const bank = document.getElementById('word-bank');
+            const targets = document.getElementById('target-bank');
+            bank.innerHTML = '';
+            targets.innerHTML = '';
+
+            const shuffledFirst = [...pairs].sort(() => Math.random() - 0.5);
+            const shuffledSecond = [...pairs].sort(() => Math.random() - 0.5);
+
+            shuffledFirst.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'card bg-indigo-100 p-4 rounded-xl font-bold text-indigo-700 text-center shadow-sm border-2 border-transparent';
+                div.innerText = p.first;
+                div.draggable = true;
+                div.dataset.value = p.first;
+                div.ondragstart = (e) => e.dataTransfer.setData('text', p.first);
+                bank.appendChild(div);
+            });
+
+            shuffledSecond.forEach(p => {
+                const container = document.createElement('div');
+                container.className = 'flex items-center gap-2';
+                
+                const dropZone = document.createElement('div');
+                dropZone.className = 'drop-zone flex-1 rounded-xl flex items-center justify-center font-bold text-gray-400';
+                dropZone.innerText = 'Drop here...';
+                dropZone.dataset.match = p.first;
+                
+                dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('active'); };
+                dropZone.ondragleave = () => dropZone.classList.remove('active');
+                dropZone.ondrop = (e) => handleDrop(e, dropZone);
+
+                const secondWord = document.createElement('div');
+                secondWord.className = 'w-1/2 p-4 bg-gray-100 rounded-xl font-bold text-gray-700 text-center';
+                secondWord.innerText = p.second;
+
+                container.appendChild(dropZone);
+                container.appendChild(secondWord);
+                targets.appendChild(container);
+            });
+        }
+
+        function handleDrop(e, zone) {
+            e.preventDefault();
+            zone.classList.remove('active');
+            const data = e.dataTransfer.getData('text');
+            
+            if (data === zone.dataset.match) {
+                zone.innerText = data;
+                zone.classList.add('correct');
+                zone.classList.remove('text-gray-400');
+                zone.classList.add('text-green-800');
+                // Remove from bank
+                const cards = document.querySelectorAll('#word-bank .card');
+                cards.forEach(c => { if(c.dataset.value === data) c.style.visibility = 'hidden'; });
+                matchedCount++;
+                if(matchedCount === pairs.length) {
+                    setTimeout(() => {
+                        document.getElementById('mode-match').classList.add('hidden');
+                        document.getElementById('win-screen').classList.remove('hidden');
+                    }, 500);
+                }
+            } else {
+                zone.classList.add('wrong');
+                setTimeout(() => zone.classList.remove('wrong'), 500);
+            }
+        }
+
+        // Quiz Logic
+        function resetQuiz() {
+            quizIndex = 0;
+            score = 0;
+            document.getElementById('quiz-score').innerText = score;
+            nextQuiz();
+        }
+
+        function nextQuiz() {
+            if(quizIndex >= quizData.length) {
+                document.getElementById('mode-quiz').classList.add('hidden');
+                document.getElementById('win-screen').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('quiz-content').classList.remove('hidden');
+            document.getElementById('quiz-feedback').classList.add('hidden');
+            document.getElementById('quiz-word').innerText = quizData[quizIndex].word;
+        }
+
+        function checkQuiz(userGuess) {
+            const current = quizData[quizIndex];
+            const feedback = document.getElementById('quiz-feedback');
+            const feedbackText = document.getElementById('feedback-text');
+            
+            if(userGuess === current.isReal) {
+                score++;
+                feedbackText.innerText = "Correct! 🌟";
+                feedbackText.className = "text-2xl font-bold mb-4 text-green-600";
+            } else {
+                feedbackText.innerText = "Oops! Not quite. ❌";
+                feedbackText.className = "text-2xl font-bold mb-4 text-red-600";
+            }
+            
+            document.getElementById('quiz-score').innerText = score;
+            document.getElementById('quiz-content').classList.add('hidden');
+            feedback.classList.remove('hidden');
+            quizIndex++;
+        }
+
+        // Init
+        resetMatch();
+    </script>
+</body>
+</html>
